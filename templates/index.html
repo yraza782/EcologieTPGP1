@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulation température câble</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <h1>Simulation température du câble</h1>
+
+    <form id="form">
+        <label>Tc0: <input name="Tc0" type="number" step="0.1" required></label><br>
+        <label>Ta: <input name="Ta" type="number" step="0.1" required></label><br>
+        <label>I: <input name="I" type="number" step="0.1" required></label><br>
+        <label>ws: <input name="ws" type="number" step="0.1" required></label><br>
+        <button type="submit">Envoyer</button>
+    </form>
+
+    <h2>Résultats</h2>
+    <ul id="resultats"></ul>
+
+    <h3>Graphique</h3>
+    <canvas id="graphique" width="600" height="400"></canvas>
+
+    <h3>Empreinte carbone et énergie</h3>
+    <p id="emissions">Émissions : en attente...</p>
+    <p id="energie">Énergie consommée : en attente...</p>
+
+    <script>
+        let chart;
+
+        document.getElementById("form").addEventListener("submit", async function (e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            Object.keys(data).forEach(k => data[k] = parseFloat(data[k]));
+
+            try {
+                const response = await fetch("/predict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data)
+                });
+
+                const res = await response.json();
+
+                // Affichage liste texte
+                const ul = document.getElementById("resultats");
+                ul.innerHTML = "";
+                res.temperature_prevue.forEach((val, i) => {
+                    const li = document.createElement("li");
+                    li.textContent = `Minute ${i + 1} : ${val.toFixed(2)}°C`;
+                    ul.appendChild(li);
+                });
+
+                // Affichage graphique
+                const ctx = document.getElementById("graphique").getContext("2d");
+                const labels = res.temperature_prevue.map((_, i) => `Min ${i + 1}`);
+                const dataPoints = res.temperature_prevue;
+
+                if (chart) chart.destroy();
+
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Température du câble (°C)',
+                            data: dataPoints,
+                            borderColor: 'rgb(75, 192, 192)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+
+                // Affichage des émissions CO₂
+                document.getElementById("emissions").textContent =
+                    `Émissions estimées : ${res.emissions_kgCO2} kgCO₂eq`;
+
+                // Affichage de l’énergie consommée
+                document.getElementById("energie").textContent =
+                    `Énergie consommée : ${res.energy_consumed_kWh} kWh`;
+
+            } catch (err) {
+                alert("Erreur lors de la requête API.");
+                console.error(err);
+            }
+        });
+    </script>
+</body>
+</html>
