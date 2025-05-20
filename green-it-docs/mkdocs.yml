@@ -1,0 +1,10 @@
+site_name: GREEN IT - Simulation câble
+theme:
+  name: material
+
+nav:
+  - Accueil: index.md
+  - Utilisation: utilisation.md
+  - Code API: code_api.md
+  - Modèle de calcul: modele.md
+  - Interface Web: interface.md
