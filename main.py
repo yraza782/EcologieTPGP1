@@ -1,63 +1,91 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi import Request
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
-from codecarbon import EmissionsTracker
-from temperature_model import predict_temperature_manual
+from typing import List
+import matplotlib.pyplot as plt
+import uuid
 import numpy as np
+from codecarbon import EmissionsTracker
+
+# ✅ Import de la version compilée Cython
+from simulate_core import simulate as simulate_cython
 
 # --- Initialisation FastAPI ---
 app = FastAPI()
-
-# --- CORS pour permettre les appels JS ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ à restreindre si nécessaire
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# --- Templates HTML (pour servir index.html) ---
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-@app.get("/", response_class=HTMLResponse)
-def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-# --- Modèle de données reçu ---
-class InputData(BaseModel):
-    Tc0: float
+# --- Modèles API ---
+class SimulationInput(BaseModel):
+    Tc: float
     Ta: float
     I: float
     ws: float
 
-# --- Route API POST ---
-@app.post("/predict")
-def predict(data: InputData):
-    from codecarbon import EmissionsTracker
-    import numpy as np
+class SimulationOutput(BaseModel):
+    minutes: List[int]
+    Tc_values: List[float]
 
-    # Démarrer le suivi d'émissions
-    tracker = EmissionsTracker()
-    tracker.start()
+# --- Wrapper pour appel Cython ---
+def simulate(Tc, Ta, I, ws):
+    return simulate_cython(Tc, Ta, I, ws)
 
-    # Charger le CPU pour déclencher une empreinte mesurable
-    for _ in range(5):
+# --- API JSON ---
+@app.post("/simulate", response_model=SimulationOutput)
+def simulate_temperature(data: SimulationInput):
+    temps, valeurs = simulate(data.Tc, data.Ta, data.I, data.ws)
+    return {"minutes": temps, "Tc_values": valeurs}
+
+# --- Formulaire HTML ---
+@app.get("/", response_class=HTMLResponse)
+def form_get(request: Request):
+    return templates.TemplateResponse("form.html", {"request": request})
+
+@app.post("/", response_class=HTMLResponse)
+def form_post(
+    request: Request,
+    Tc: float = Form(...),
+    Ta: float = Form(...),
+    I: float = Form(...),
+    ws: float = Form(...)
+):
+    try:
+        # 📉 Suivi carbone
+        tracker = EmissionsTracker(output_dir="static", measure_power_secs=1)
+        tracker.start()
+
+        # 🔢 Simulation énergivore (dummy charge)
         _ = np.random.random((10000, 10000))
 
-    # Simulation thermique
-    resultats = predict_temperature_manual(data.Tc0, data.Ta, data.I, data.ws)
+        # 🔥 Simulation température avec Cython
+        temps, valeurs = simulate(Tc, Ta, I, ws)
 
-    # Arrêter le suivi et récupérer les données
-    tracker.stop()
-    details = tracker.final_emissions_data
+        # 📈 Génération du graphique
+        filename = f"{uuid.uuid4().hex}.png"
+        filepath = f"static/{filename}"
+        plt.figure()
+        plt.plot(temps, valeurs, marker='o')
+        plt.xlabel("Temps (minutes)")
+        plt.ylabel("Température Tc (°C)")
+        plt.title("Évolution de Tc")
+        plt.grid(True)
+        plt.savefig(filepath)
+        plt.close()
 
+        # 🧾 Fin suivi carbone
+        emissions = tracker.stop()
+        data = tracker.final_emissions_data
+        energy_kwh = data.energy_consumed
 
-    return {
-        "input": data.dict(),
-        "temperature_prevue": resultats,
-        "emissions_kgCO2": round(details.emissions, 6),
-        "energy_consumed_kWh": round(details.energy_consumed, 6)
-    }
+        return templates.TemplateResponse("form.html", {
+            "request": request,
+            "image_path": f"/static/{filename}",
+            "emissions": f"{emissions:.6f} kgCO2eq",
+            "energy": f"{energy_kwh:.6f} kWh"
+        })
+
+    except Exception as e:
+        print("❌ ERREUR SERVEUR :", e)
+        return HTMLResponse(content=f"<h1>Erreur : {e}</h1>", status_code=500)
