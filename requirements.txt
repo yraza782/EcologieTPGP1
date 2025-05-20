@@ -1,2 +1,6 @@
+requests
+flask
+fastapi
+uvicorn
+pydantic
 scipy
-numpy
