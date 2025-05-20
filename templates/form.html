@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simulation Tc</title>
+    <style>
+        body {
+            background-color: #e6f4e6; /* Vert clair */
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #2e7d32;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+
+        form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 12px;
+            display: inline-block;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        label, input, button {
+            display: block;
+            margin: 10px auto;
+        }
+
+        input {
+            padding: 5px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        img {
+            max-width: 600px;
+            margin-top: 20px;
+        }
+
+        .result {
+            margin-top: 30px;
+            font-size: 18px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>GREEN IT</h1>
+
+    <form method="post">
+        <label>Tc :</label>
+        <input type="number" step="any" name="Tc" required>
+
+        <label>Ta :</label>
+        <input type="number" step="any" name="Ta" required>
+
+        <label>I :</label>
+        <input type="number" step="any" name="I" required>
+
+        <label>ws :</label>
+        <input type="number" step="any" name="ws" required>
+
+        <button type="submit">Lancer</button>
+    </form>
+
+    {% if image_path %}
+        <div class="result">
+            <h2>Graphique :</h2>
+            <img src="{{ image_path }}" alt="Graphique de Tc">
+        </div>
+    {% endif %}
+
+    {% if emissions %}
+        <div class="result">
+            <h2>Empreinte carbone estimée :</h2>
+            <p>{{ emissions }}</p>
+        </div>
+    {% endif %}
+
+    {% if energy %}
+        <div class="result">
+            <h2>Énergie consommée estimée :</h2>
+            <p>{{ energy }}</p>
+        </div>
+    {% endif %}
+</body>
+</html>
